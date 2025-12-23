@@ -16,39 +16,48 @@ export default function App() {
 
     const RENDER_BACKEND_URL = "https://luba-tv-1.onrender.com";
 
-    const url = import.meta.env.DEV
-      ? "http://localhost:3001"
-      : RENDER_BACKEND_URL;
+    const url = import.meta.env.DEV ? "http://localhost:3001" : RENDER_BACKEND_URL;
 
     console.log("🔌 Connecting socket to:", url);
 
     const s = io(url, {
       path: "/socket.io",
       transports: ["polling", "websocket"],
-      autoConnect: true,
+      autoConnect: false, // важно!
     });
+
+    const onConnect = () => {
+      console.log("✅ CONNECT", s.id);
+      setConnected(true);
+    };
+
+    const onDisconnect = (reason) => {
+      console.log("❌ DISCONNECT", reason);
+      setConnected(false);
+    };
+
+    const onConnectError = (err) => {
+      console.log("❌ CONNECT_ERROR", err?.message || err);
+      setConnected(false);
+    };
+
+    // СНАЧАЛА подписки
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+    s.on("connect_error", onConnectError);
+
+    // потом connect
+    s.connect();
+
+    // если уже подключен — не ждём события
+    setConnected(s.connected);
 
     setSocket(s);
 
-    s.on("connect", () => {
-      console.log("✅ Socket connected:", s.id);
-      setConnected(true);
-    });
-
-    s.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-      setConnected(false);
-    });
-
-    s.on("connect_error", (err) => {
-      console.error("❌ Socket connect_error:", err.message);
-      setConnected(false);
-    });
-
     return () => {
-      s.off("connect");
-      s.off("disconnect");
-      s.off("connect_error");
+      s.off("connect", onConnect);
+      s.off("disconnect", onDisconnect);
+      s.off("connect_error", onConnectError);
     };
   }, [socket]);
 
