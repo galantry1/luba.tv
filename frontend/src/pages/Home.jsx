@@ -10,14 +10,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   const createRoom = () => {
-    if (!socket) return alert("Сокет ещё не готов. Подожди секунду и попробуй снова.");
+    if (!socket) return alert("Сокет ещё не готов. Подожди секунду.");
 
     setLoading(true);
 
     const timeout = setTimeout(() => {
-      console.log("❌ createRoom timeout (no callback)");
       setLoading(false);
-      alert("Сервер не ответил на создание комнаты. Проверь Console/Render logs.");
+      alert("Сервер не ответил на создание комнаты.");
     }, 8000);
 
     socket.emit("createRoom", (resp) => {
@@ -28,6 +27,12 @@ export default function Home() {
         alert(resp?.error || "Не удалось создать комнату");
         return;
       }
+
+      // ✅ сохраняем hostKey, чтобы ты всегда мог вернуть права хоста
+      if (resp.hostKey) {
+        sessionStorage.setItem(`hostKey:${resp.roomId}`, resp.hostKey);
+      }
+
       nav(`/room/${resp.roomId}`);
     });
   };
@@ -37,30 +42,13 @@ export default function Home() {
     const code = roomCode.trim().toUpperCase();
     if (!code) return;
 
-    setLoading(true);
-
-    const timeout = setTimeout(() => {
-      console.log("❌ joinRoom timeout (no callback)");
-      setLoading(false);
-      alert("Сервер не ответил на вход.");
-    }, 8000);
-
-    socket.emit("joinRoom", { roomId: code }, (resp) => {
-      clearTimeout(timeout);
-      setLoading(false);
-
-      if (!resp?.ok) {
-        alert(resp?.error || "Комната не найдена");
-        return;
-      }
-      nav(`/room/${code}`);
-    });
+    nav(`/room/${code}`);
   };
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, position: "relative", zIndex: 5 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: 0.2 }}>люба.tv</div>
+        <div style={{ fontSize: 24, fontWeight: 900 }}>люба.tv</div>
         <div style={{ opacity: 0.8 }}>Статус: {connected ? "🟢 подключено" : "🟠 подключение…"}</div>
       </div>
 
@@ -124,10 +112,6 @@ export default function Home() {
             >
               Войти
             </button>
-          </div>
-
-          <div style={{ opacity: 0.75, fontSize: 13 }}>
-            YouTube — идеальная синхронизация. RuTube — best effort (иногда нужен первый клик).
           </div>
         </div>
       </div>

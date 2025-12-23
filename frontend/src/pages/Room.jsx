@@ -90,21 +90,27 @@ export default function Room() {
 
   // join room
   useEffect(() => {
-    if (!socket || !connected) return;
+  if (!socket || !connected) return;
 
-    socket.emit("joinRoom", { roomId }, (resp) => {
-      if (!resp?.ok) {
-        alert(resp?.error || "Комната не найдена");
-        navigate("/");
-        return;
-      }
-      setIsHost(resp.hostId === socket.id);
-      const st = resp.state || {};
-      setVideo(st.video || null);
-      setPlaying(!!st.playing);
-      setTime(st.time || 0);
-    });
-  }, [socket, connected, roomId, navigate]);
+  const hostKey = sessionStorage.getItem(`hostKey:${String(roomId).toUpperCase()}`) || undefined;
+
+  socket.emit("joinRoom", { roomId, hostKey }, (resp) => {
+    if (!resp?.ok) {
+      alert(resp?.error || "Комната не найдена");
+      navigate("/");
+      return;
+    }
+
+    // ✅ сервер прямо говорит isHost
+    setIsHost(!!resp.isHost);
+
+    const st = resp.state || {};
+    setVideo(st.video || null);
+    setPlaying(!!st.playing);
+    setTime(st.time || 0);
+  });
+}, [socket, connected, roomId, navigate]);
+
 
   // state updates
   useEffect(() => {
