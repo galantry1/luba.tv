@@ -4,7 +4,6 @@ import { io } from "socket.io-client";
 import Home from "./pages/Home";
 import Room from "./pages/Room";
 
-// Context to provide socket across components
 export const SocketContext = createContext(null);
 
 export default function App() {
@@ -15,19 +14,13 @@ export default function App() {
   useEffect(() => {
     if (socket) return;
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || "";
+    const RENDER_BACKEND_URL = "https://luba-tv-1.onrender.com";
 
-    // DEV: локальный бэк
-    // PROD: обязателен VITE_BACKEND_URL (Render)
-    const url = import.meta.env.DEV ? "http://localhost:3001" : backendUrl;
+    const url = import.meta.env.DEV
+      ? "http://localhost:3001"
+      : RENDER_BACKEND_URL;
 
-    if (!url) {
-      console.error(
-        "❌ VITE_BACKEND_URL is missing in production. Add it in Vercel Env and Redeploy."
-      );
-      setConnected(false);
-      return;
-    }
+    console.log("🔌 Connecting socket to:", url);
 
     const s = io(url, {
       path: "/socket.io",
@@ -37,20 +30,28 @@ export default function App() {
 
     setSocket(s);
 
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    s.on("connect", () => {
+      console.log("✅ Socket connected:", s.id);
+      setConnected(true);
+    });
 
-    s.on("connect", onConnect);
-    s.on("disconnect", onDisconnect);
+    s.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+      setConnected(false);
+    });
+
+    s.on("connect_error", (err) => {
+      console.error("❌ Socket connect_error:", err.message);
+      setConnected(false);
+    });
 
     return () => {
-      s.off("connect", onConnect);
-      s.off("disconnect", onDisconnect);
-      // не делаем s.disconnect() здесь, чтобы не рвать соединение при hot reload/перерендере
+      s.off("connect");
+      s.off("disconnect");
+      s.off("connect_error");
     };
   }, [socket]);
 
-  // Global error handling: navigate to home if room not found
   useEffect(() => {
     if (!socket) return;
 
@@ -62,9 +63,7 @@ export default function App() {
     };
 
     socket.on("roomError", handleNotFound);
-    return () => {
-      socket.off("roomError", handleNotFound);
-    };
+    return () => socket.off("roomError", handleNotFound);
   }, [socket, navigate]);
 
   return (
