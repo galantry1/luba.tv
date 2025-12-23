@@ -47,7 +47,7 @@ export default function Room() {
   const lastTimeEmitRef = useRef(0);
 
   const [isHost, setIsHost] = useState(false);
-  const [video, setVideo] = useState(null); // { provider, url }
+  const [video, setVideo] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
 
@@ -88,7 +88,7 @@ export default function Room() {
     }
   };
 
-  // Join room
+  // join room
   useEffect(() => {
     if (!socket || !connected) return;
 
@@ -99,7 +99,6 @@ export default function Room() {
         return;
       }
       setIsHost(resp.hostId === socket.id);
-
       const st = resp.state || {};
       setVideo(st.video || null);
       setPlaying(!!st.playing);
@@ -107,7 +106,7 @@ export default function Room() {
     });
   }, [socket, connected, roomId, navigate]);
 
-  // Receive state updates
+  // state updates
   useEffect(() => {
     if (!socket) return;
     const handleStateUpdate = ({ state }) => {
@@ -120,11 +119,12 @@ export default function Room() {
     return () => socket.off("stateUpdate", handleStateUpdate);
   }, [socket]);
 
-  // RuTube messages (ready, duration)
+  // rutube events
   useEffect(() => {
     const onMessage = (event) => {
       if (typeof event.origin === "string" && !event.origin.includes("rutube.ru")) return;
       if (typeof event.data !== "string") return;
+
       let msg;
       try {
         msg = JSON.parse(event.data);
@@ -132,23 +132,25 @@ export default function Room() {
         return;
       }
       if (!msg?.type) return;
+
       if (msg.type === "player:ready") setRutubeReady(true);
       if (msg.type === "player:durationChange" && typeof msg.data?.duration === "number") {
         setRutubeDuration(msg.data.duration);
       }
     };
+
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // Reset RuTube flags when URL changes
+  // reset rutube flags on url change
   useEffect(() => {
     if (!video || video.provider !== "rutube") return;
     setRutubeReady(false);
     setRutubeDuration(null);
   }, [video?.url]);
 
-  // Apply state to RuTube iframe
+  // apply state to rutube iframe
   useEffect(() => {
     if (!video || video.provider !== "rutube") return;
     if (!rutubeReady) return;
@@ -165,7 +167,6 @@ export default function Room() {
     if (!url) return;
 
     const provider = providerSelect;
-
     if (provider === "youtube") url = normalizeYouTubeUrl(url);
     if (provider === "rutube") url = normalizeRuTubeUrl(url);
 
@@ -181,7 +182,6 @@ export default function Room() {
     });
   };
 
-  // Host controls
   const handlePlay = () => {
     if (!isHost || !socket) return;
     socket.emit("control", { roomId, action: "play", time });
@@ -198,7 +198,7 @@ export default function Room() {
     socket.emit("control", { roomId, action: "seek", time: seconds });
   };
 
-  // ✅ Host sends time ticks to keep others synced
+  // host sends time ticks
   const handleProgress = (progress) => {
     if (!isHost) return;
 
@@ -257,8 +257,11 @@ export default function Room() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>
-              Комната: <span style={{ fontFamily: "ui-monospace, Menlo, Monaco, Consolas, monospace" }}>{String(roomId).toUpperCase()}</span>
+            <div style={{ fontSize: 18, fontWeight: 900 }}>
+              Комната:{" "}
+              <span style={{ fontFamily: 'ui-monospace, Menlo, Monaco, Consolas, monospace' }}>
+                {String(roomId).toUpperCase()}
+              </span>
             </div>
             <div style={{ opacity: 0.8, marginTop: 6 }}>
               {isHost ? "Вы хост — вы управляете просмотром." : "Вы участник — следуете за хостом."}
@@ -280,18 +283,21 @@ export default function Room() {
           {!video ? (
             isHost ? (
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>Выберите видео</div>
+                <div style={{ fontWeight: 900, fontSize: 16 }}>Выберите видео</div>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>YouTube — идеально. RuTube — best effort.</div>
+
                 <select value={providerSelect} onChange={(e) => setProviderSelect(e.target.value)} style={{ padding: 12, borderRadius: 12 }}>
                   <option value="youtube">YouTube</option>
                   <option value="rutube">RuTube</option>
                 </select>
+
                 <input
                   value={videoUrlInput}
                   onChange={(e) => setVideoUrlInput(e.target.value)}
                   placeholder={providerSelect === "youtube" ? "YouTube ссылка" : "RuTube ссылка"}
                   style={{ padding: 12, borderRadius: 12 }}
                 />
+
                 <button onClick={handleSetVideo} style={{ padding: 12, borderRadius: 12 }}>
                   Установить
                 </button>
@@ -303,7 +309,6 @@ export default function Room() {
             <div style={{ display: "grid", gap: 12 }}>
               {video.provider === "youtube" ? (
                 <ReactPlayer
-                  ref={playerRef}
                   url={video.url}
                   playing={playing}
                   controls
@@ -337,7 +342,7 @@ export default function Room() {
                       borderRadius: 12,
                       background: "linear-gradient(135deg, rgba(124,58,237,0.65), rgba(6,182,212,0.40))",
                       color: "white",
-                      fontWeight: 800,
+                      fontWeight: 900,
                     }}
                   >
                     {playing ? "Пауза" : "Воспроизвести"}
