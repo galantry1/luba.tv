@@ -1,75 +1,91 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { SocketContext } from '../App';
+import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { SocketContext } from "../App";
 
 export default function Home() {
-  const [roomCode, setRoomCode] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [joining, setJoining] = useState(false);
+  const nav = useNavigate();
   const { socket, connected } = useContext(SocketContext);
-  const navigate = useNavigate();
 
-  const handleCreate = () => {
-    if (!socket || !connected) return;
-    setCreating(true);
-    socket.emit('createRoom', (resp) => {
-      setCreating(false);
-      if (resp?.ok) {
-        navigate(`/room/${resp.roomId}`);
-      } else {
-        alert(resp?.error || 'Ошибка создания комнаты');
+  const [roomCode, setRoomCode] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const createRoom = async () => {
+    if (!socket) {
+      alert("Сокет ещё не создан. Подожди 1–2 сек и попробуй снова.");
+      return;
+    }
+
+    setLoading(true);
+
+    const timeout = setTimeout(() => {
+      console.log("❌ createRoom timeout (no callback from server)");
+      setLoading(false);
+      alert("Сервер не ответил на создание комнаты. Открой Console и скинь ошибки.");
+    }, 8000);
+
+    console.log("➡️ emit createRoom, connected=", socket.connected);
+
+    socket.emit("createRoom", (resp) => {
+      clearTimeout(timeout);
+      console.log("✅ createRoom response:", resp);
+      setLoading(false);
+
+      if (!resp?.ok) {
+        alert("Не удалось создать комнату");
+        return;
       }
+      nav(`/room/${resp.roomId}`);
     });
   };
 
-  const handleJoin = () => {
-    const id = roomCode.trim().toUpperCase();
-    if (!id) return;
-    if (!socket || !connected) return;
-    setJoining(true);
-    socket.emit('joinRoom', { roomId: id }, (resp) => {
-      setJoining(false);
-      if (resp?.ok) {
-        navigate(`/room/${resp.roomId}`);
-      } else {
-        alert(resp?.error || 'Комната не найдена');
+  const joinRoom = async () => {
+    if (!socket) return alert("Сокет ещё не готов.");
+    const code = roomCode.trim().toUpperCase();
+    if (!code) return;
+
+    setLoading(true);
+
+    const timeout = setTimeout(() => {
+      console.log("❌ joinRoom timeout (no callback from server)");
+      setLoading(false);
+      alert("Сервер не ответил на вход. Проверь комнату и соединение.");
+    }, 8000);
+
+    console.log("➡️ emit joinRoom", code, "connected=", socket.connected);
+
+    socket.emit("joinRoom", { roomId: code }, (resp) => {
+      clearTimeout(timeout);
+      console.log("✅ joinRoom response:", resp);
+      setLoading(false);
+
+      if (!resp?.ok) {
+        alert(resp?.error || "Комната не найдена");
+        return;
       }
+      nav(`/room/${code}`);
     });
   };
 
   return (
-    <div className="container">
-      <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-        <h1>Смотрите вместе — синхронно</h1>
-        <p className="muted">
-          Создай комнату, кинь код подруге и управляй просмотром как в Rave.
-        </p>
-        <div style={{ marginTop: '0.85rem' }}>
-          <span className="pill">{connected ? 'Онлайн' : 'Подключение…'}</span>
-        </div>
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
+      <div style={{ opacity: 0.75, marginBottom: 10 }}>
+        Статус: {connected ? "🟢 подключено" : "🟠 подключение…"}
       </div>
 
-      <div className="grid">
-        <div className="card">
-          <h2>Создать комнату</h2>
-          <p className="muted">Ты будешь хостом: выбираешь видео и управляешь воспроизведением.</p>
-          <button onClick={handleCreate} disabled={!connected || creating} style={{ width: '100%', marginTop: '0.5rem' }}>
-            {creating ? 'Создание…' : 'Создать'}
-          </button>
-        </div>
+      <div style={{ display: "grid", gap: 12 }}>
+        <button onClick={createRoom} disabled={loading} style={{ padding: 14, borderRadius: 12 }}>
+          {loading ? "Создаю…" : "Создать комнату"}
+        </button>
 
-        <div className="card">
-          <h2>Войти по коду</h2>
-          <p className="muted">Введи код комнаты и подключайся к просмотру.</p>
+        <div style={{ display: "flex", gap: 10 }}>
           <input
-            type="text"
-            placeholder="Например: A1B2C3D4"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
-            style={{ textTransform: 'uppercase' }}
+            placeholder="Код комнаты"
+            style={{ flex: 1, padding: 14, borderRadius: 12 }}
           />
-          <button onClick={handleJoin} disabled={!connected || joining} style={{ width: '100%' }}>
-            {joining ? 'Вход…' : 'Войти'}
+          <button onClick={joinRoom} disabled={loading} style={{ padding: 14, borderRadius: 12 }}>
+            Войти
           </button>
         </div>
       </div>

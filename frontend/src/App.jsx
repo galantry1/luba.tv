@@ -1,97 +1,155 @@
-import React, { useState, useEffect, createContext } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
-import Home from "./pages/Home";
-import Room from "./pages/Room";
+import React, { useContext, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { SocketContext } from "../App";
 
-export const SocketContext = createContext(null);
+export default function Home() {
+  const nav = useNavigate();
+  const { socket, connected } = useContext(SocketContext);
 
-export default function App() {
-  const [socket, setSocket] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const navigate = useNavigate();
+  const [roomCode, setRoomCode] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (socket) return;
+  const createRoom = () => {
+    if (!socket) {
+      alert("Сокет ещё не создан. Подожди 1–2 сек и попробуй снова.");
+      return;
+    }
 
-    const RENDER_BACKEND_URL = "https://luba-tv-1.onrender.com";
-    const url = import.meta.env.DEV ? "http://localhost:3001" : RENDER_BACKEND_URL;
+    setLoading(true);
 
-    console.log("🔌 Connecting socket to:", url);
+    const timeout = setTimeout(() => {
+      console.log("❌ createRoom timeout (no callback from server)");
+      setLoading(false);
+      alert("Сервер не ответил на создание комнаты. Открой Console и скинь ошибки.");
+    }, 8000);
 
-    const s = io(url, {
-      path: "/socket.io",
-      transports: ["polling", "websocket"],
-      autoConnect: false,
-      timeout: 10000,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 500,
-      reconnectionDelayMax: 2000,
-    });
+    console.log("➡️ emit createRoom, connected=", socket.connected);
 
-    // expose for debugging in console
-    window.__socket = s;
+    socket.emit("createRoom", (resp) => {
+      clearTimeout(timeout);
+      console.log("✅ createRoom response:", resp);
+      setLoading(false);
 
-    const onConnect = () => {
-      console.log("✅ CONNECT", s.id);
-      setConnected(true);
-    };
-    const onDisconnect = (reason) => {
-      console.log("❌ DISCONNECT", reason);
-      setConnected(false);
-    };
-    const onConnectError = (err) => {
-      console.log("❌ CONNECT_ERROR", err?.message || err);
-      setConnected(false);
-    };
-    const onReconnectAttempt = (n) => console.log("🔁 reconnect_attempt", n);
-    const onReconnect = (n) => console.log("✅ reconnected after", n);
-
-    s.on("connect", onConnect);
-    s.on("disconnect", onDisconnect);
-    s.on("connect_error", onConnectError);
-    s.io.on("reconnect_attempt", onReconnectAttempt);
-    s.io.on("reconnect", onReconnect);
-
-    // connect AFTER handlers
-    s.connect();
-
-    // hard sync connected flag (на случай если connect событие промахнулось)
-    const t = setInterval(() => setConnected(s.connected), 500);
-
-    setSocket(s);
-
-    return () => {
-      clearInterval(t);
-      s.off("connect", onConnect);
-      s.off("disconnect", onDisconnect);
-      s.off("connect_error", onConnectError);
-      s.io.off("reconnect_attempt", onReconnectAttempt);
-      s.io.off("reconnect", onReconnect);
-    };
-  }, [socket]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNotFound = (data) => {
-      if (data?.error) {
-        alert(data.error);
-        navigate("/");
+      if (!resp?.ok) {
+        alert("Не удалось создать комнату");
+        return;
       }
-    };
+      nav(`/room/${resp.roomId}`);
+    });
+  };
 
-    socket.on("roomError", handleNotFound);
-    return () => socket.off("roomError", handleNotFound);
-  }, [socket, navigate]);
+  const joinRoom = () => {
+    if (!socket) return alert("Сокет ещё не готов.");
+    const code = roomCode.trim().toUpperCase();
+    if (!code) return;
+
+    setLoading(true);
+
+    const timeout = setTimeout(() => {
+      console.log("❌ joinRoom timeout (no callback from server)");
+      setLoading(false);
+      alert("Сервер не ответил на вход. Проверь комнату и соединение.");
+    }, 8000);
+
+    console.log("➡️ emit joinRoom", code, "connected=", socket.connected);
+
+    socket.emit("joinRoom", { roomId: code }, (resp) => {
+      clearTimeout(timeout);
+      console.log("✅ joinRoom response:", resp);
+      setLoading(false);
+
+      if (!resp?.ok) {
+        alert(resp?.error || "Комната не найдена");
+        return;
+      }
+      nav(`/room/${code}`);
+    });
+  };
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/room/:roomId" element={<Room />} />
-      </Routes>
-    </SocketContext.Provider>
+    <div
+      style={{
+        maxWidth: 900,
+        margin: "0 auto",
+        padding: 24,
+        position: "relative",
+        zIndex: 5,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 0.2 }}>люба.tv</div>
+        <div style={{ opacity: 0.8 }}>
+          Статус: {connected ? "🟢 подключено" : "🟠 подключение…"}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 18,
+          padding: 18,
+          borderRadius: 18,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          backdropFilter: "blur(10px)",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+        }}
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <button
+            onClick={createRoom}
+            disabled={loading}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "linear-gradient(135deg, rgba(124,58,237,0.65), rgba(6,182,212,0.40))",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {loading ? "Создаю…" : "Создать комнату"}
+          </button>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <input
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value)}
+              placeholder="Код комнаты"
+              style={{
+                flex: 1,
+                minWidth: 220,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(0,0,0,0.35)",
+                color: "white",
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={joinRoom}
+              disabled={loading}
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.10)",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer",
+                minWidth: 120,
+              }}
+            >
+              Войти
+            </button>
+          </div>
+
+          <div style={{ opacity: 0.75, fontSize: 13 }}>
+            YouTube — идеальная синхронизация. RuTube — best effort (встроенный плеер, иногда нужен первый клик).
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
