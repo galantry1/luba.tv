@@ -28,7 +28,7 @@ export default function Home() {
         return;
       }
 
-      // ✅ сохраняем hostKey, чтобы ты всегда мог вернуть права хоста
+      // ✅ сохраняем hostKey, чтобы всегда можно было вернуть хоста
       if (resp.hostKey) {
         sessionStorage.setItem(`hostKey:${resp.roomId}`, resp.hostKey);
       }
@@ -38,10 +38,8 @@ export default function Home() {
   };
 
   const joinRoom = () => {
-    if (!socket) return alert("Сокет ещё не готов.");
     const code = roomCode.trim().toUpperCase();
     if (!code) return;
-
     nav(`/room/${code}`);
   };
 

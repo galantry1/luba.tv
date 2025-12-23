@@ -42,12 +42,11 @@ export default function Room() {
   const navigate = useNavigate();
   const { socket, connected } = useContext(SocketContext);
 
-  const playerRef = useRef(null);
   const rutubeIframeRef = useRef(null);
   const lastTimeEmitRef = useRef(0);
 
   const [isHost, setIsHost] = useState(false);
-  const [video, setVideo] = useState(null);
+  const [video, setVideo] = useState(null); // { provider, url }
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
 
@@ -65,52 +64,51 @@ export default function Room() {
     frame.contentWindow.postMessage(JSON.stringify({ type, data }), "*");
   }, []);
 
-  const copyRoomCode = async () => {
-    try {
-      await navigator.clipboard.writeText(String(roomId).toUpperCase());
-      setStatus("Код комнаты скопирован ✅");
-      setTimeout(() => setStatus(""), 1400);
-    } catch {
-      setStatus("Не удалось скопировать код");
-      setTimeout(() => setStatus(""), 1400);
-    }
-  };
+  const rid = String(roomId).toUpperCase();
+  const myHostKey = sessionStorage.getItem(`hostKey:${rid}`) || undefined;
 
-  const copyInviteLink = async () => {
-    try {
-      const url = `${window.location.origin}/room/${String(roomId).toUpperCase()}`;
-      await navigator.clipboard.writeText(url);
-      setStatus("Ссылка скопирована ✅");
-      setTimeout(() => setStatus(""), 1400);
-    } catch {
-      setStatus("Не удалось скопировать ссылку");
-      setTimeout(() => setStatus(""), 1400);
-    }
-  };
-
-  // join room
+  // join room + auto claim host if we have hostKey
   useEffect(() => {
-  if (!socket || !connected) return;
+    if (!socket || !connected) return;
 
-  const hostKey = sessionStorage.getItem(`hostKey:${String(roomId).toUpperCase()}`) || undefined;
+    socket.emit("joinRoom", { roomId: rid, hostKey: myHostKey }, (resp) => {
+      if (!resp?.ok) {
+        alert(resp?.error || "Комната не найдена");
+        navigate("/");
+        return;
+      }
 
-  socket.emit("joinRoom", { roomId, hostKey }, (resp) => {
-    if (!resp?.ok) {
-      alert(resp?.error || "Комната не найдена");
-      navigate("/");
-      return;
-    }
+      setIsHost(resp.hostId === socket.id);
 
-    // ✅ сервер прямо говорит isHost
-    setIsHost(!!resp.isHost);
+      const st = resp.state || {};
+      setVideo(st.video || null);
+      setPlaying(!!st.playing);
+      setTime(st.time || 0);
 
-    const st = resp.state || {};
-    setVideo(st.video || null);
-    setPlaying(!!st.playing);
-    setTime(st.time || 0);
-  });
-}, [socket, connected, roomId, navigate]);
+      // if we created the room earlier -> force reclaim
+      if (myHostKey && resp.hostId !== socket.id) {
+        socket.emit("claimHost", { roomId: rid, hostKey: myHostKey }, (r2) => {
+          if (r2?.ok) {
+            setIsHost(true);
+            setStatus("Вы стали хостом ✅");
+            setTimeout(() => setStatus(""), 1200);
+          }
+        });
+      }
+    });
+  }, [socket, connected, rid, myHostKey, navigate]);
 
+  // update host in realtime
+  useEffect(() => {
+    if (!socket) return;
+
+    const onHostUpdate = ({ hostId }) => {
+      setIsHost(hostId === socket.id);
+    };
+
+    socket.on("hostUpdate", onHostUpdate);
+    return () => socket.off("hostUpdate", onHostUpdate);
+  }, [socket]);
 
   // state updates
   useEffect(() => {
@@ -176,7 +174,7 @@ export default function Room() {
     if (provider === "youtube") url = normalizeYouTubeUrl(url);
     if (provider === "rutube") url = normalizeRuTubeUrl(url);
 
-    socket.emit("setVideo", { roomId, provider, url }, (resp) => {
+    socket.emit("setVideo", { roomId: rid, provider, url }, (resp) => {
       if (!resp?.ok) {
         alert(resp?.error || "Не удалось установить видео");
         return;
@@ -190,31 +188,30 @@ export default function Room() {
 
   const handlePlay = () => {
     if (!isHost || !socket) return;
-    socket.emit("control", { roomId, action: "play", time });
+    socket.emit("control", { roomId: rid, action: "play", time });
   };
 
   const handlePause = () => {
     if (!isHost || !socket) return;
-    socket.emit("control", { roomId, action: "pause", time });
+    socket.emit("control", { roomId: rid, action: "pause", time });
   };
 
   const handleSeek = (seconds) => {
     if (!isHost || !socket) return;
     setTime(seconds);
-    socket.emit("control", { roomId, action: "seek", time: seconds });
+    socket.emit("control", { roomId: rid, action: "seek", time: seconds });
   };
 
-  // host sends time ticks
-  const handleProgress = (progress) => {
+  // host sends time ticks (works for YouTube progress)
+  const onYouTubeProgress = (progress) => {
     if (!isHost) return;
-
     const t = progress.playedSeconds || 0;
     setTime(t);
 
     const now = Date.now();
     if (socket && playing && now - lastTimeEmitRef.current > 1000) {
       lastTimeEmitRef.current = now;
-      socket.emit("control", { roomId, action: "seek", time: t });
+      socket.emit("control", { roomId: rid, action: "seek", time: t });
     }
   };
 
@@ -265,8 +262,8 @@ export default function Room() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 900 }}>
               Комната:{" "}
-              <span style={{ fontFamily: 'ui-monospace, Menlo, Monaco, Consolas, monospace' }}>
-                {String(roomId).toUpperCase()}
+              <span style={{ fontFamily: "ui-monospace, Menlo, Monaco, Consolas, monospace" }}>
+                {rid}
               </span>
             </div>
             <div style={{ opacity: 0.8, marginTop: 6 }}>
@@ -274,23 +271,13 @@ export default function Room() {
             </div>
             {status && <div style={{ marginTop: 10, opacity: 0.9 }}>{status}</div>}
           </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button onClick={copyRoomCode} style={{ padding: "10px 14px", borderRadius: 12 }}>
-              Копировать код
-            </button>
-            <button onClick={copyInviteLink} style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,0.10)" }}>
-              Копировать ссылку
-            </button>
-          </div>
         </div>
 
         <div style={{ marginTop: 16 }}>
           {!video ? (
             isHost ? (
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontWeight: 900, fontSize: 16 }}>Выберите видео</div>
-                <div style={{ opacity: 0.75, fontSize: 13 }}>YouTube — идеально. RuTube — best effort.</div>
+                <div style={{ fontWeight: 900, fontSize: 16 }}>Вставьте ссылку</div>
 
                 <select value={providerSelect} onChange={(e) => setProviderSelect(e.target.value)} style={{ padding: 12, borderRadius: 12 }}>
                   <option value="youtube">YouTube</option>
@@ -305,7 +292,7 @@ export default function Room() {
                 />
 
                 <button onClick={handleSetVideo} style={{ padding: 12, borderRadius: 12 }}>
-                  Установить
+                  Запустить для всех
                 </button>
               </div>
             ) : (
@@ -320,7 +307,7 @@ export default function Room() {
                   controls
                   onPlay={handlePlay}
                   onPause={handlePause}
-                  onProgress={handleProgress}
+                  onProgress={onYouTubeProgress}
                   onSeek={(s) => isHost && handleSeek(s)}
                   width="100%"
                   height="420px"
