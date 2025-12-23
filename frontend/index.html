@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watch Party</title>
+    <style>
+      /* Global dark theme */
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+          Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background:
+          radial-gradient(800px circle at 20% 10%, rgba(122, 186, 255, 0.25), transparent 50%),
+          radial-gradient(900px circle at 80% 30%, rgba(168, 85, 247, 0.22), transparent 55%),
+          radial-gradient(700px circle at 40% 90%, rgba(34, 211, 238, 0.18), transparent 55%),
+          linear-gradient(135deg, #050510 0%, #0b0b1b 40%, #050510 100%);
+        color: #f3f3f3;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Subtle animated grain/glow */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(closest-side at 50% 50%, rgba(255,255,255,0.06), transparent 60%),
+          repeating-linear-gradient(
+            0deg,
+            rgba(255,255,255,0.02),
+            rgba(255,255,255,0.02) 1px,
+            transparent 1px,
+            transparent 3px
+          );
+        mix-blend-mode: overlay;
+        opacity: 0.35;
+      }
+      a {
+        color: #7abaff;
+      }
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        /* leave space for fixed topbar */
+        padding: 6.5rem 1.25rem 3rem;
+      }
+
+      .topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        padding: 1rem 1.25rem;
+        background: rgba(6, 6, 18, 0.55);
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .topbar__inner {
+        max-width: 980px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-size: 1.15rem;
+        text-decoration: none;
+        color: #ffffff;
+      }
+      .brand__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #7abaff, #a855f7, #22d3ee);
+        box-shadow: 0 0 22px rgba(122,186,255,0.55);
+      }
+      .topbar__meta {
+        font-size: 0.9rem;
+        color: rgba(255,255,255,0.75);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2.15rem;
+        letter-spacing: -0.03em;
+      }
+      h2 {
+        margin: 0 0 0.75rem;
+        font-size: 1.25rem;
+        letter-spacing: -0.02em;
+      }
+      .muted {
+        color: rgba(255,255,255,0.72);
+        margin-top: 0.35rem;
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+      }
+      @media (min-width: 860px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+      .card {
+        background: rgba(10, 10, 25, 0.55);
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 18px 80px rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        position: relative;
+      }
+
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: 1rem;
+        padding: 1px;
+        background: linear-gradient(135deg, rgba(122,186,255,0.55), rgba(168,85,247,0.45), rgba(34,211,238,0.35));
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+        opacity: 0.7;
+      }
+      input, button, select {
+        font-size: 1rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: none;
+        margin-bottom: 0.75rem;
+      }
+      input, select {
+        width: 100%;
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+        outline: none;
+        border: 1px solid rgba(255,255,255,0.10);
+      }
+      input:focus, select:focus {
+        border-color: rgba(122,186,255,0.55);
+        box-shadow: 0 0 0 4px rgba(122,186,255,0.12);
+      }
+      button {
+        cursor: pointer;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #06b6d4 100%);
+        color: white;
+        transition: background 0.2s;
+      }
+      button:hover {
+        filter: brightness(1.06);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        filter: none;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(255,255,255,0.85);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar__inner">
+        <a class="brand" href="/">
+          <span class="brand__dot"></span>
+          <span>люба.tv</span>
+        </a>
+        <div class="topbar__meta">Watch party • YouTube / RuTube</div>
+      </div>
+    </header>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
